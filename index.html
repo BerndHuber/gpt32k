@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>32k chatgpt Simple</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        body {
+            background-color: #343a40;
+            color: #f8f9fa;
+            min-height: 100vh;
+            margin: 0;
+            padding-top: 50px;
+        }
+        .container {
+            background-color: #495057;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        .slider-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .slider-label {
+            color: #ced4da;
+        }
+        .slider {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 15px;
+            background: #868e96;
+            outline: none;
+            border-radius: 5px;
+            transition: background 0.2s ease;
+        }
+        .slider:hover {
+            background: #adb5bd;
+        }
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 25px;
+            height: 25px;
+            background: #20c997;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+        .slider::-webkit-slider-thumb:hover {
+            background: #78e2a0;
+        }
+        .slider::-moz-range-thumb {
+            width: 25px;
+            height: 25px;
+            background: #20c997;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        .message-container {
+            background-color: #6c757d;
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 10px;
+            position: relative;
+        }
+        .message-header {
+            font-weight: bold;
+            color: #20c997;
+            margin-bottom: 5px;
+        }
+        .message-input {
+            width: 100%;
+            padding: 10px;
+            background-color: #343a40;
+            border: none;
+            color: #f8f9fa;
+            border-radius: 4px;
+            resize: none;
+            min-height: 38px; /* Minimum height to match the button */
+            overflow: hidden;
+        }
+        .message-input:focus {
+            background-color: #343a40;
+            color: #f8f9fa;
+            box-shadow: none;
+        }
+        .delete-message {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            cursor: pointer;
+            font-size: 1.2em;
+            color: #f8f9fa;
+            opacity: 0.5;
+            transition: color 0.2s, opacity 0.2s;
+        }
+        .delete-message:hover {
+            color: #dc3545;
+            opacity: 1;
+        }
+        .status-indicator {
+            text-align: center;
+            margin: 5px 0;
+            display: none;
+        }
+        button {
+            margin-bottom: 1em;
+        }
+        .copy-btn {
+            display: none;
+            margin-left: 10px;
+            padding: 0 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="slider-container mb-4">
+        <div class="slider-label">Max Tokens:</div>
+        <input type="range" min="1" max="14932" value="1024" class="slider" id="max-tokens-slider">
+        <div id="max-tokens-value">1024</div>
+    </div>
+    <div id="message-list">
+        <!-- Message fields will be added dynamically here -->
+    </div>
+    <div class="text-center mt-3">
+        <button class="btn btn-success mb-1" onclick="addMessage('user')">Add User Message</button>
+        <button class="btn btn-secondary mb-1" onclick="submitMessages()">Submit to AI</button>
+    </div>
+    <div class="status-indicator">
+        <div class="spinner-grow text-light" role="status">
+            <span class="sr-only">Loading...</span>
+        </div>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.4.2/dist/umd/popper.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+<script>
+    let messages = [];
+    let maxTokens = 1024;
+    let apiKey = new URLSearchParams(window.location.search).get('api_key');
+    let slider = document.getElementById('max-tokens-slider');
+    let maxTokensDisplay = document.getElementById('max-tokens-value');
+    let statusIndicator = document.querySelector('.status-indicator');
+
+    slider.oninput = function() {
+        maxTokensDisplay.textContent = this.value;
+        maxTokens = parseInt(this.value, 10);
+    }
+
+    function addMessage(role = 'user', content = '') {
+        let messageContainer = document.createElement('div');
+        messageContainer.classList.add('message-container');
+        let messageHeader = document.createElement('div');
+        messageHeader.classList.add('message-header');
+        let roleName = document.createTextNode(role.toUpperCase() + ' MESSAGE');
+        messageHeader.appendChild(roleName);
+
+        let messageInput = document.createElement('textarea');
+        messageInput.classList.add('form-control', 'message-input');
+        messageInput.setAttribute('rows', '2');
+        messageInput.addEventListener('input', adjustTextArea);
+        messageInput.value = content;
+
+        let deleteButton = document.createElement('span');
+        deleteButton.classList.add('delete-message');
+        deleteButton.innerHTML = '&times;';
+        deleteButton.onclick = () => { 
+            messageContainer.remove();
+            messages = messages.filter(m => m.element !== messageContainer);
+        };
+
+        // Append elements to message container
+        messageContainer.appendChild(messageHeader);
+        messageContainer.appendChild(messageInput);
+        messageContainer.appendChild(deleteButton);
+
+        // If the message is from the AI, add a copy button
+        if (role === 'assistant') {
+            let copyButton = document.createElement('button');
+            copyButton.classList.add('btn', 'btn-info', 'copy-btn');
+            copyButton.textContent = 'Copy';
+            copyButton.onclick = () => {
+                navigator.clipboard.writeText(messageInput.value).then(
+                    //() => alert('AI message copied to clipboard!')
+                );
+            };
+            messageContainer.appendChild(copyButton); // Append the copy button
+            copyButton.style.display = 'block'; // Make the copy button visible
+        }
+
+        // Append message container to the DOM
+        document.getElementById('message-list').appendChild(messageContainer);
+
+        messages.push({role, content: content.trim(), element: messageContainer, inputElement: messageInput});
+        adjustTextArea.call(messageInput); // Adjust the initial height of the textarea
+    }
+
+    function adjustTextArea() {
+        this.style.height = 'inherit'; // Reset height to inherit to get the new scrollHeight
+        this.style.height = `${this.scrollHeight}px`; // Set new height
+    }
+
+    function submitMessages() {
+        statusIndicator.style.display = 'block'; // Show the loading indicator
+        let payload = {
+            model: "gpt-4-32k",
+            messages: messages.map(m => ({role: m.role, content: m.inputElement.value.trim() })),
+            temperature: 1,
+            max_tokens: maxTokens,
+            top_p: 1,
+            frequency_penalty: 0,
+            presence_penalty: 0
+        };
+
+        fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + apiKey
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data && data.choices && data.choices.length > 0) {
+                addMessage('assistant', data.choices[0].message.content);
+            }
+        })
+        .catch(error => console.error('Error:', error))
+        .finally(() => {
+            statusIndicator.style.display = 'none'; // Hide the loading indicator
+        });
+    }
+
+    window.onload = function() {
+        // Initialize with a user message field
+        addMessage('user');
+    }
+</script>
+
+</body>
+</html>
